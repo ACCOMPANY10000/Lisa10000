@@ -1,241 +1,546 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Feliz San Valentín, Lisa</title>
+<title>Romantic Fireworks</title>
 
 <style>
-html, body {
+  html, body {
     margin: 0;
-    padding: 0;
     overflow: hidden;
-    background: black;
-    width: 100%;
-    height: 100%;
-    font-family: Arial, sans-serif;
-}
+    background: #000;
+    cursor: crosshair;
+  }
 
-#passwordScreen {
-    position: fixed;
-    inset: 0;
-    background: black;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 9999;
-    flex-direction: column;
-}
-
-#passwordBox {
-    background: rgba(20,20,20,0.9);
-    padding: 30px;
-    border-radius: 15px;
-    text-align: center;
-    border: 1px solid rgba(255,255,255,0.1);
-}
-
-#passwordBox h2 {
-    color: white;
-    margin-bottom: 20px;
-}
-
-#passwordInput {
-    width: 250px;
-    padding: 12px;
-    border-radius: 8px;
-    border: none;
-    outline: none;
-    font-size: 16px;
-}
-
-#enterBtn {
-    margin-top: 15px;
-    padding: 12px 25px;
-    border: none;
-    border-radius: 8px;
-    background: #ff3366;
-    color: white;
-    font-size: 16px;
-    cursor: pointer;
-}
-
-#errorText {
-    color: red;
-    margin-top: 12px;
-    display: none;
-}
-
-canvas {
+  canvas {
     display: block;
-}
-
-#message {
-    position: fixed;
-    top: 40px;
-    width: 100%;
-    text-align: center;
-    color: white;
-    font-size: 42px;
-    font-weight: bold;
-    z-index: 10;
-    text-shadow: 0 0 20px rgba(255,255,255,0.8);
-    pointer-events: none;
-}
+    background: #000;
+  }
 </style>
 </head>
 
 <body>
-
-<div id="passwordScreen">
-    <div id="passwordBox">
-        <h2>Enter Password</h2>
-
-        <input 
-            type="password" 
-            id="passwordInput" 
-            placeholder="Password"
-        >
-
-        <br>
-
-        <button id="enterBtn">
-            Enter
-        </button>
-
-        <div id="errorText">
-            Wrong Password
-        </div>
-    </div>
-</div>
-
-<div id="message">
-    Feliz San Valentín, Lisa
-</div>
-
-<canvas id="canvas"></canvas>
+<canvas id="c"></canvas>
 
 <script>
-const PASSWORD = "20260411";
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d", { alpha: false });
 
-const passwordScreen = document.getElementById("passwordScreen");
-const passwordInput = document.getElementById("passwordInput");
-const enterBtn = document.getElementById("enterBtn");
-const errorText = document.getElementById("errorText");
+let DPR, W, H;
+let bgLoaded = false;
+let bgAlpha = 0;
+let running = false;
+let paused = false;
 
-function checkPassword() {
-    if (passwordInput.value === PASSWORD) {
-        passwordScreen.style.display = "none";
+let lastHeartRocket = 0;
+let lastHeartDirect = 0;
+let lastLoveText = 0;
+let lastIdleRocket = 0;
+
+const rockets = [];
+const particles = [];
+const texts = [];
+
+const bg = new Image();
+bg.src = "background.jpg";
+bg.onload = () => bgLoaded = true;
+
+const loveWords = [
+  "我爱你", "I love you", "Te amo", "Te quiero", "Je t’aime", "Ich liebe dich",
+  "Ti amo", "愛してる", "사랑해", "Я тебя люблю", "Eu te amo",
+  "Σ’ αγαπώ", "Ik hou van jou", "Kocham cię", "Seni seviyorum",
+  "أحبك", "मैं तुमसे प्यार करता हूँ", "Anh yêu em", "ฉันรักคุณ",
+  "Mahal kita", "Aku cinta kamu", "Jag älskar dig", "Jeg elsker deg",
+  "Rakastan sinua", "Volim te", "Szeretlek", "Te iubesc",
+  "Milujem ťa", "Aš tave myliu", "Es tevi mīlu", "T’estimo",
+
+  "I ♥ Lisa",
+  "Lisa ♥ Wilhelm",
+  "INTJ ❤ INFJ",
+  "2026 · 5.20 快乐",
+  "Happy 5.20, Lisa",
+  "Te quiero, Lisa",
+  "Always with Lisa",
+  "Only Lisa",
+  "For Lisa",
+  "Wilhelm ❤ Lisa"
+];
+
+const heartColors = [
+  "255,120,170",
+  "255,160,190",
+  "255,205,130",
+  "255,235,195",
+  "255,255,245"
+];
+
+const circleColors = [
+  "255,215,120",
+  "255,235,170",
+  "255,245,210",
+  "255,255,245",
+  "255,185,95"
+];
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 1.15);
+  W = canvas.width = innerWidth * DPR;
+  H = canvas.height = innerHeight * DPR;
+  canvas.style.width = innerWidth + "px";
+  canvas.style.height = innerHeight + "px";
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+
+resize();
+addEventListener("resize", resize);
+
+document.addEventListener("visibilitychange", () => {
+  paused = document.hidden;
+});
+
+function rand(a, b) {
+  return Math.random() * (b - a) + a;
+}
+
+function pick(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function drawBackground() {
+  ctx.globalCompositeOperation = "source-over";
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, innerWidth, innerHeight);
+
+  if (bgLoaded && bgAlpha > 0.01) {
+    const imgRatio = bg.width / bg.height;
+    const screenRatio = innerWidth / innerHeight;
+
+    let dw, dh, dx, dy;
+
+    if (imgRatio > screenRatio) {
+      dh = innerHeight;
+      dw = dh * imgRatio;
+      dx = (innerWidth - dw) / 2;
+      dy = 0;
     } else {
-        errorText.style.display = "block";
-    }
-}
-
-enterBtn.addEventListener("click", checkPassword);
-
-passwordInput.addEventListener("keydown", function(e){
-    if(e.key === "Enter"){
-        checkPassword();
-    }
-});
-
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
-
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
-
-window.addEventListener("resize", () => {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-});
-
-class Firework {
-    constructor(x, y, color) {
-        this.x = x;
-        this.y = y;
-        this.color = color;
-        this.particles = [];
-
-        for (let i = 0; i < 80; i++) {
-            this.particles.push({
-                x: this.x,
-                y: this.y,
-                angle: Math.random() * Math.PI * 2,
-                speed: Math.random() * 5 + 2,
-                radius: Math.random() * 2 + 1,
-                alpha: 1
-            });
-        }
+      dw = innerWidth;
+      dh = dw / imgRatio;
+      dx = 0;
+      dy = (innerHeight - dh) / 2;
     }
 
-    update() {
-        this.particles.forEach(p => {
-            p.x += Math.cos(p.angle) * p.speed;
-            p.y += Math.sin(p.angle) * p.speed;
-            p.alpha -= 0.01;
-        });
+    ctx.globalAlpha = bgAlpha;
+    ctx.drawImage(bg, dx, dy, dw, dh);
 
-        this.particles = this.particles.filter(p => p.alpha > 0);
-    }
+    ctx.fillStyle = "rgba(0,0,0,0.34)";
+    ctx.fillRect(0, 0, innerWidth, innerHeight);
 
-    draw() {
-        this.particles.forEach(p => {
-            ctx.globalAlpha = p.alpha;
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-            ctx.fillStyle = this.color;
-            ctx.fill();
-        });
-
-        ctx.globalAlpha = 1;
-    }
-}
-
-const fireworks = [];
-
-function randomColor() {
-    const colors = [
-        "#ff3366",
-        "#ffcc00",
-        "#00ccff",
-        "#66ff66",
-        "#ffffff",
-        "#ff66ff"
-    ];
-
-    return colors[Math.floor(Math.random() * colors.length)];
-}
-
-function createFirework() {
-    const x = Math.random() * canvas.width;
-    const y = Math.random() * canvas.height * 0.6;
-
-    fireworks.push(
-        new Firework(x, y, randomColor())
+    const g = ctx.createRadialGradient(
+      innerWidth / 2, innerHeight / 2, innerWidth * 0.1,
+      innerWidth / 2, innerHeight / 2, innerWidth * 0.8
     );
+
+    g.addColorStop(0, "rgba(0,0,0,0.04)");
+    g.addColorStop(1, "rgba(0,0,0,0.55)");
+
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, innerWidth, innerHeight);
+
+    ctx.globalAlpha = 1;
+  }
 }
 
-setInterval(createFirework, 700);
+function createLoveText(x, y) {
+  texts.push({
+    text: pick(loveWords),
+    x,
+    y,
+    vy: rand(-0.32, -0.1),
+    life: 105,
+    max: 105,
+    size: rand(22, 40),
+    color: pick([
+      "255,210,225",
+      "255,235,190",
+      "255,255,245",
+      "255,170,205"
+    ])
+  });
+}
 
-function animate() {
-    requestAnimationFrame(animate);
+function launchHeartRocket(targetX, targetY, big = false) {
+  rockets.push({
+    x: targetX,
+    y: innerHeight + 30,
+    vx: rand(-0.16, 0.16),
+    vy: big ? -13.5 : rand(-10.8, -8.8),
+    target: targetY,
+    color: pick(heartColors),
+    type: "heart",
+    big
+  });
+}
 
-    ctx.fillStyle = "rgba(0,0,0,0.2)";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+function launchCircleRocket() {
+  const startX = rand(innerWidth * 0.12, innerWidth * 0.88);
+  const targetX = startX + rand(-90, 90);
+  const targetY = rand(innerHeight * 0.14, innerHeight * 0.62);
 
-    fireworks.forEach((f, index) => {
-        f.update();
-        f.draw();
+  rockets.push({
+    x: startX,
+    y: innerHeight + 36,
+    vx: (targetX - startX) / 95,
+    vy: rand(-8.8, -7.2),
+    target: targetY,
+    color: pick(circleColors),
+    type: "circle",
+    big: false
+  });
+}
 
-        if (f.particles.length === 0) {
-            fireworks.splice(index, 1);
-        }
+function explodeHeart(x, y, big = false) {
+  const count = big ? 220 : 125;
+  const scale = big ? 0.44 : rand(0.23, 0.31);
+  const color = pick(heartColors);
+
+  for (let i = 0; i < count; i++) {
+    const t = Math.PI * 2 * i / count;
+
+    const hx = 16 * Math.pow(Math.sin(t), 3);
+    const hy = -(
+      13 * Math.cos(t)
+      - 5 * Math.cos(2 * t)
+      - 2 * Math.cos(3 * t)
+      - Math.cos(4 * t)
+    );
+
+    const noise = big ? rand(0.96, 1.04) : rand(0.9, 1.13);
+
+    particles.push({
+      x,
+      y,
+      vx: hx * scale * noise,
+      vy: hy * scale * noise,
+      life: big ? rand(60, 82) : rand(42, 58),
+      max: big ? 82 : 58,
+      color,
+      width: big ? rand(2.2, 3.8) : rand(1.6, 2.9),
+      tail: big ? rand(5.5, 7.5) : rand(3.8, 5.2),
+      gravity: big ? 0.025 : 0.035
     });
+  }
+
+  const inner = big ? 90 : 32;
+
+  for (let i = 0; i < inner; i++) {
+    const angle = rand(0, Math.PI * 2);
+    const speed = big ? rand(2.5, 8.5) : rand(1.3, 4.4);
+
+    particles.push({
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: big ? rand(35, 55) : rand(22, 38),
+      max: big ? 55 : 38,
+      color: pick(["255,225,160", "255,255,245", "255,160,190"]),
+      width: big ? rand(1.7, 3.4) : rand(1.1, 2.4),
+      tail: big ? 4.8 : 3.2,
+      gravity: 0.025
+    });
+  }
 }
+
+function explodeCircle(x, y) {
+  const color = pick(circleColors);
+
+  // 主爆炸：更大、更亮、更慢
+  const count = 165;
+
+  for (let i = 0; i < count; i++) {
+    const angle = Math.PI * 2 * i / count;
+    const speed = rand(3.0, 6.6);
+
+    particles.push({
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: rand(58, 78),
+      max: 78,
+      color,
+      width: rand(2.0, 3.5),
+      tail: rand(5.8, 8.2),
+      gravity: 0.026
+    });
+  }
+
+  // 第二层较慢的内圈，让烟花更厚
+  const innerCount = 70;
+
+  for (let i = 0; i < innerCount; i++) {
+    const angle = Math.PI * 2 * i / innerCount + rand(-0.04, 0.04);
+    const speed = rand(1.8, 4.2);
+
+    particles.push({
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: rand(50, 72),
+      max: 72,
+      color: pick(["255,245,210", "255,255,245", "255,220,140"]),
+      width: rand(1.7, 3.0),
+      tail: rand(4.8, 7.2),
+      gravity: 0.022
+    });
+  }
+
+  // 中心闪光
+  for (let i = 0; i < 22; i++) {
+    const angle = rand(0, Math.PI * 2);
+    const speed = rand(0.8, 3.2);
+
+    particles.push({
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: rand(28, 42),
+      max: 42,
+      color: "255,255,245",
+      width: rand(2.2, 4.0),
+      tail: 3.6,
+      gravity: 0.018
+    });
+  }
+}
+
+function fullScreenBurst() {
+  for (let i = 0; i < 26; i++) {
+    setTimeout(() => {
+      const x = rand(innerWidth * 0.08, innerWidth * 0.92);
+      const y = rand(innerHeight * 0.12, innerHeight * 0.72);
+
+      explodeHeart(x, y, false);
+      createLoveText(
+        rand(innerWidth * 0.12, innerWidth * 0.88),
+        rand(innerHeight * 0.16, innerHeight * 0.78)
+      );
+    }, i * 80);
+  }
+}
+
+function shutdownBurst() {
+  explodeHeart(innerWidth / 2, innerHeight * 0.46, true);
+
+  for (let i = 0; i < 8; i++) {
+    setTimeout(() => {
+      explodeHeart(
+        rand(innerWidth * 0.18, innerWidth * 0.82),
+        rand(innerHeight * 0.2, innerHeight * 0.72),
+        false
+      );
+    }, i * 80);
+  }
+}
+
+function drawRocket(r) {
+  ctx.strokeStyle = `rgba(${r.color},0.95)`;
+  ctx.lineWidth = r.type === "circle" ? 3.8 : r.big ? 4 : 3;
+
+  ctx.beginPath();
+  ctx.moveTo(r.x, r.y);
+  ctx.lineTo(r.x - r.vx * 18, r.y - r.vy * 18);
+  ctx.stroke();
+
+  ctx.fillStyle = "rgba(255,245,220,1)";
+  ctx.beginPath();
+  ctx.arc(r.x, r.y, r.type === "circle" ? 3.2 : r.big ? 3.5 : 2.5, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawParticle(p) {
+  const a = Math.max(p.life / p.max, 0);
+  const fade = a * a;
+
+  ctx.strokeStyle = `rgba(${p.color},${Math.min(fade * 1.25, 1)})`;
+  ctx.lineWidth = p.width * fade + 0.55;
+
+  ctx.beginPath();
+  ctx.moveTo(p.x, p.y);
+  ctx.lineTo(p.x - p.vx * p.tail, p.y - p.vy * p.tail);
+  ctx.stroke();
+
+  ctx.fillStyle = `rgba(${p.color},${Math.min(fade * 1.15, 1)})`;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, 1.45 * fade + 0.35, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawTexts() {
+  ctx.globalCompositeOperation = "source-over";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  for (let i = texts.length - 1; i >= 0; i--) {
+    const t = texts[i];
+    const a = Math.max(t.life / t.max, 0);
+    const fade = Math.sin(a * Math.PI);
+
+    ctx.font = `500 ${t.size}px "Segoe UI", "Microsoft YaHei", sans-serif`;
+    ctx.fillStyle = `rgba(${t.color},${fade})`;
+    ctx.shadowColor = `rgba(${t.color},${fade})`;
+    ctx.shadowBlur = 9;
+
+    ctx.fillText(t.text, t.x, t.y);
+
+    ctx.shadowBlur = 0;
+
+    t.y += t.vy;
+    t.life--;
+
+    if (t.life <= 0) {
+      texts.splice(i, 1);
+    }
+  }
+}
+
+function autoHeartFireworks(now) {
+  if (!running) return;
+
+  if (now - lastHeartRocket > 260) {
+    lastHeartRocket = now;
+
+    if (rockets.length < 7 && particles.length < 1850) {
+      launchHeartRocket(
+        rand(innerWidth * 0.12, innerWidth * 0.88),
+        rand(innerHeight * 0.16, innerHeight * 0.58),
+        false
+      );
+    }
+  }
+
+  if (now - lastHeartDirect > 420) {
+    lastHeartDirect = now;
+
+    if (particles.length < 1850) {
+      explodeHeart(
+        rand(innerWidth * 0.12, innerWidth * 0.88),
+        rand(innerHeight * 0.16, innerHeight * 0.72),
+        false
+      );
+    }
+  }
+
+  if (now - lastLoveText > 240) {
+    lastLoveText = now;
+
+    if (texts.length < 70) {
+      createLoveText(
+        rand(innerWidth * 0.12, innerWidth * 0.88),
+        rand(innerHeight * 0.16, innerHeight * 0.78)
+      );
+    }
+  }
+}
+
+function autoIdleFireworks(now) {
+  if (running) return;
+
+  // 每秒约 3–4 发，从底部打上去
+  if (now - lastIdleRocket > 285) {
+    lastIdleRocket = now;
+
+    if (rockets.length < 8 && particles.length < 2300) {
+      launchCircleRocket();
+    }
+  }
+}
+
+function animate(now = 0) {
+  if (!paused) {
+    if (running) {
+      bgAlpha += (1 - bgAlpha) * 0.018;
+    } else {
+      bgAlpha += (0 - bgAlpha) * 0.026;
+    }
+
+    drawBackground();
+    autoHeartFireworks(now);
+    autoIdleFireworks(now);
+
+    ctx.globalCompositeOperation = "lighter";
+
+    for (let i = rockets.length - 1; i >= 0; i--) {
+      const r = rockets[i];
+
+      drawRocket(r);
+
+      r.x += r.vx;
+      r.y += r.vy;
+      r.vy += 0.045;
+
+      if (r.y < r.target || r.vy > -1.05) {
+        if (r.type === "circle") {
+          explodeCircle(r.x, r.y);
+        } else {
+          explodeHeart(r.x, r.y, r.big);
+        }
+
+        rockets.splice(i, 1);
+      }
+    }
+
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+
+      drawParticle(p);
+
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vx *= 0.982;
+      p.vy *= 0.982;
+      p.vy += p.gravity;
+      p.life--;
+
+      if (p.life <= 0) {
+        particles.splice(i, 1);
+      }
+    }
+
+    drawTexts();
+
+    if (particles.length > 2600) {
+      particles.splice(0, particles.length - 2600);
+    }
+
+    if (texts.length > 80) {
+      texts.splice(0, texts.length - 80);
+    }
+  }
+
+  requestAnimationFrame(animate);
+}
+
+canvas.onclick = e => {
+  explodeHeart(e.clientX, e.clientY, false);
+  createLoveText(e.clientX, e.clientY - 65);
+};
+
+canvas.oncontextmenu = e => {
+  e.preventDefault();
+
+  if (!running) {
+    running = true;
+    fullScreenBurst();
+  } else {
+    running = false;
+    shutdownBurst();
+  }
+};
 
 animate();
 </script>
-
 </body>
 </html>
